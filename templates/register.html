@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>南开搜索引擎 - 注册</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gradient-to-r from-blue-100 to-purple-100 min-h-screen flex flex-col items-center justify-center">
+    <div id="root" class="w-full max-w-md p-6"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+
+        function RegisterApp() {
+            const [registerUsername, setRegisterUsername] = useState('');
+            const [registerPassword, setRegisterPassword] = useState('');
+            const [error, setError] = useState('');
+
+            useEffect(() => {
+                const checkSession = async () => {
+                    try {
+                        const response = await fetch('/get_session');
+                        const data = await response.json();
+                        if (data.logged_in) {
+                            window.location.href = '/';
+                        }
+                    } catch (err) {
+                        console.error('无法获取会话信息:', err);
+                    }
+                };
+                checkSession();
+            }, []);
+
+            const handleRegister = async () => {
+                try {
+                    const response = await fetch('/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: registerUsername, password: registerPassword })
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        setError('注册成功，请登录');
+                        setRegisterUsername('');
+                        setRegisterPassword('');
+                    } else {
+                        setError(data.error);
+                    }
+                } catch (err) {
+                    setError('注册失败');
+                }
+            };
+
+            return (
+                <div className="bg-white shadow-xl rounded-2xl p-8">
+                    <h1 className="text-3xl font-bold mb-6 text-center text-blue-600">南开搜索引擎 - 注册</h1>
+                    <h2 className="text-xl mb-2">注册</h2>
+                    <input
+                        type="text"
+                        placeholder="用户名"
+                        value={registerUsername}
+                        onChange={(e) => setRegisterUsername(e.target.value)}
+                        className="p-2 border rounded mb-2 w-full"
+                    />
+                    <input
+                        type="password"
+                        placeholder="密码"
+                        value={registerPassword}
+                        onChange={(e) => setRegisterPassword(e.target.value)}
+                        className="p-2 border rounded mb-2 w-full"
+                    />
+                    <button
+                        onClick={handleRegister}
+                        className="p-2 bg-green-500 text-white rounded hover:bg-green-600 w-full"
+                    >
+                        注册
+                    </button>
+                    <p className="text-sm mt-4 text-center">
+                        已有账户？<a href="/login" className="text-blue-600 hover:underline">登录</a>
+                    </p>
+                    {error && <p className="text-red-500 mt-4">{error}</p>}
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<RegisterApp />);
+    </script>
+</body>
+
+</html>

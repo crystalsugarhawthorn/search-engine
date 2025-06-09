@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>南开大学搜索引擎</title>
+
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.20/babel.min.js"></script>
+    <!-- Fallback for React Dependencies -->
+    <script>
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'SCRIPT') {
+                const src = e.target.src;
+                if (src.includes('unpkg.com')) {
+                    const newSrc = src.replace('unpkg.com', 'cdn.jsdelivr.net/npm');
+                    const script = document.createElement('script');
+                    script.src = newSrc;
+                    document.head.appendChild(script);
+                }
+            }
+        }, true);
+    </script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .recommendation-item {
+            margin: 8px 0;
+            padding: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .recommendation-item i {
+            margin-right: 8px;
+            color: #666;
+        }
+        .recommendation-item a {
+            color: #1a0dab;
+            text-decoration: none;
+        }
+        .recommendation-item:hover {
+            background-color: #f5f5f5;
+        }
+        #suggestions li {
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+        }
+        #suggestions li i {
+            margin-right: 8px;
+            color: #666;
+        }
+        #suggestions li:hover {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-r from-blue-100 to-purple-100 min-h-screen flex justify-center">
+    {% raw %}
+    <div id="root" class="w-full max-w-4xl mx-auto"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { createRoot } = ReactDOM;
+
+        function useDebounce(value, delay) {
+            const [debouncedValue, setDebouncedValue] = useState(value);
+            
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    setDebouncedValue(value);
+                }, delay);
+                
+                return () => {
+                    clearTimeout(timer);
+                };
+            }, [value, delay]);
+            
+            return debouncedValue;
+        }
+
+        function InitialState() {
+            return (
+                <div className="text-center py-12">
+                    <svg className="mx-auto h-16 w-16 text-blue-500 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <h2 className="text-2xl font-semibold text-gray-900 mb-4">欢迎使用南开大学搜索引擎</h2>
+                    <p className="text-gray-600 mb-8">输入关键词开始搜索校园资源</p>
+                    <div className="max-w-lg mx-auto text-left bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <h3 className="text-lg font-medium text-gray-900 mb-3">搜索提示：</h3>
+                        <ul className="space-y-2 text-sm text-gray-600">
+                            <li className="flex items-center">
+                                <svg className="w-4 h-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                                使用精确的关键词可以获得更好的搜索结果
+                            </li>
+                            <li className="flex items-center">
+                                <svg className="w-4 h-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                                使用空格分隔多个关键词
+                            </li>
+                            <li className="flex items-center">
+                                <svg className="w-4 h-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                                勾选"仅显示文件"可以只搜索文档类型的结果
+                            </li>
+                            <li className="flex items-center">
+                                <svg className="w-4 h-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                                点击"历史记录"可以查看之前的搜索内容
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            );
+        }
+
+        function LoadingSpinner() {
+            return (
+                <div className="flex flex-col items-center justify-center py-12">
+                    <div className="relative">
+                        <div className="w-12 h-12">
+                            <div className="absolute w-12 h-12 border-4 border-blue-200 rounded-full"></div>
+                            <div className="absolute w-12 h-12 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                        </div>
+                    </div>
+                    <p className="mt-4 text-sm text-gray-500">正在搜索...</p>
+                </div>
+            );
+        }
+
+        function NoResults({ query }) {
+            return (
+                <div className="text-center py-12">
+                    <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">未找到相关结果</h3>
+                    <p className="text-gray-500 mb-6">没有找到与 "{query}" 相关的内容</p>
+                    <div className="text-sm text-gray-600">
+                        建议：
+                        <ul className="mt-2 space-y-1">
+                            <li>• 检查输入是否正确</li>
+                            <li>• 尝试使用不同的关键词</li>
+                            <li>• 使用更简单的搜索词</li>
+                            <li>• 取消勾选"仅显示文件"选项</li>
+                        </ul>
+                    </div>
+                </div>
+            );
+        }
+
+        function SearchBar({ query, setQuery, onSearch, filesOnly, setFilesOnly, logs, isLoading, suggestions }) {
+            const [showSuggestions, setShowSuggestions] = useState(false);
+            const searchBarRef = useRef(null);
+
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (searchBarRef.current && !searchBarRef.current.contains(event.target)) {
+                        setShowSuggestions(false);
+                    }
+                };
+                document.addEventListener('mousedown', handleClickOutside);
+                return () => document.removeEventListener('mousedown', handleClickOutside);
+            }, []);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (query.trim()) {
+                    onSearch(query.trim(), 1);
+                    setShowSuggestions(false);
+                }
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    handleSubmit(e);
+                }
+                if (e.key === 'Escape') {
+                    setShowSuggestions(false);
+                }
+            };
+
+            // 处理日志，获取最近10条去重查询
+            const recentUniqueLogs = [];
+            const seenQueries = new Set();
+            if (logs && logs.uniqueLogs) {
+                logs.uniqueLogs
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                    .forEach(log => {
+                        if (!seenQueries.has(log.query)) {
+                            seenQueries.add(log.query);
+                            recentUniqueLogs.push(log);
+                        }
+                    });
+            }
+            const top10Logs = recentUniqueLogs.slice(0, 10);
+
+            return (
+                <div className="relative max-w-4xl mx-auto w-full" ref={searchBarRef}>
+                    <form onSubmit={handleSubmit} className="w-full">
+                        <div className="flex flex-col space-y-4">
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    onFocus={() => setShowSuggestions(true)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="输入关键词搜索..."
+                                    className="w-full px-6 py-4 text-lg border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+                                    disabled={isLoading}
+                                    autoComplete="off"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={isLoading || !query.trim()}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {isLoading ? '搜索中...' : '搜索'}
+                                </button>
+                            </div>
+                            <div className="flex items-center justify-between px-4">
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        id="filesOnly"
+                                        checked={filesOnly}
+                                        onChange={(e) => setFilesOnly(e.target.checked)}
+                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                        disabled={isLoading}
+                                    />
+                                    <label htmlFor="filesOnly" className="text-gray-700">仅显示文件</label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    {showSuggestions && (
+                        <div className="absolute z-10 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200">
+                            <div className="p-4">
+                                {query.trim() ? (
+                                    <>
+                                        <h4 className="text-sm font-medium text-gray-900 mb-2">搜索建议</h4>
+                                        <ul id="suggestions" className="space-y-2">
+                                            {suggestions.slice(0, 10).map((suggestion, index) => (
+                                                <li
+                                                    key={index}
+                                                    onClick={() => {
+                                                        setQuery(suggestion.query);
+                                                        setShowSuggestions(false);
+                                                        onSearch(suggestion.query, 1);
+                                                    }}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <span className="flex items-center">
+                                                        <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                        </svg>
+                                                        {suggestion.query}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </>
+                                ) : (
+                                    <>
+                                        <h4 className="text-sm font-medium text-gray-900 mb-2">最近搜索</h4>
+                                        <div className="space-y-2">
+                                            {top10Logs.length > 0 ? (
+                                                top10Logs.map((log, index) => (
+                                                    <button
+                                                        key={index}
+                                                        onClick={() => {
+                                                            setQuery(log.query);
+                                                            setShowSuggestions(false);
+                                                            onSearch(log.query, 1);
+                                                        }}
+                                                        className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-100 rounded"
+                                                    >
+                                                        <span className="flex items-center">
+                                                            <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            {log.query}
+                                                        </span>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <p className="text-gray-500 text-center">暂无搜索记录</p>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function ResultsList({ results, query, isLoading }) {
+            if (!query) {
+                return <InitialState />;
+            }
+            if (isLoading) {
+                return <LoadingSpinner />;
+            }
+            if (!results || results.length === 0) {
+                return <NoResults query={query} />;
+            }
+            return (
+                <div className="space-y-6">
+                    {results.map((result, index) => (
+                        <div
+                            key={index}
+                            className={`p-4 rounded-lg border ${result.file_type !== 'html' ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}
+                        >
+                            <div className="flex items-center mb-2">
+                                {result.file_type !== 'html' ? (
+                                    <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                    </svg>
+                                )}
+                                <h3 className="text-lg font-medium text-blue-600 group-hover:underline">
+                                    <a href={result.url} target="_blank" rel="noopener noreferrer">{result.title}</a>
+                                </h3>
+                                {result.file_type === 'html' && result.snapshot_path && (
+                                    <a
+                                        href={`./${result.snapshot_path}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="ml-4 text-sm text-gray-500 hover:text-blue-600"
+                                    >
+                                        查看快照
+                                    </a>
+                                )}
+                            </div>
+                            <div className="ml-7">
+                                {result.title_highlight && (
+                                    <p className="text-sm text-gray-600 mb-1">
+                                        <strong>标题匹配：</strong>
+                                        <span dangerouslySetInnerHTML={{ __html: result.title_highlight }} />
+                                    </p>
+                                )}
+                                {result.content_highlight && (
+                                    <p className="text-sm text-gray-600">
+                                        <strong>内容匹配：</strong>
+                                        <span dangerouslySetInnerHTML={{ __html: result.content_highlight }} />
+                                    </p>
+                                )}
+                                {result.file_type !== 'html' && (
+                                    <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                        <span>类型：{result.file_type.toUpperCase()}</span>
+                                        {result.size && <span>大小：{(result.size / 1024).toFixed(1)} KB</span>}
+                                        {result.last_modified && (
+                                            <span>更新时间：{new Date(result.last_modified).toLocaleDateString()}</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        function Pagination({ currentPage, totalPages, onPageChange, isLoading }) {
+            const pages = [];
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+            }
+            return (
+                <div className="flex justify-center items-center space-x-2">
+                    <button
+                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={currentPage === 1 || isLoading}
+                        className="px-3 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        上一页
+                    </button>
+                    {pages.map(page => (
+                        <button
+                            key={page}
+                            onClick={() => onPageChange(page)}
+                            disabled={page === currentPage || isLoading}
+                            className={`px-3 py-2 rounded ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                            {page}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages || isLoading}
+                        className="px-3 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        下一页
+                    </button>
+                </div>
+            );
+        }
+
+        function HistoryPanel({ logs, onSearch, onDeleteLog, onClearLogs }) {
+            if (!logs || !logs.uniqueLogs || logs.uniqueLogs.length === 0) {
+                return (
+                    <div className="fixed right-4 top-20 bg-white rounded-lg shadow-lg border border-gray-200 p-6 w-80">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-medium text-gray-900">搜索历史</h3>
+                        </div>
+                        <p className="text-gray-500 text-center py-4">暂无搜索记录</p>
+                    </div>
+                );
+            }
+
+            // Group logs by date
+            const groupedLogs = logs.uniqueLogs.reduce((acc, log) => {
+                const date = new Date(log.timestamp).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+                if (!acc[date]) acc[date] = [];
+                acc[date].push(log);
+                return acc;
+            }, {});
+
+            return (
+                <div className="fixed right-4 top-20 bg-white rounded-lg shadow-lg border border-gray-200 p-6 w-80 max-h-[calc(100vh-120px)] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-medium text-gray-900">搜索历史</h3>
+                        <button
+                            onClick={onClearLogs}
+                            className="text-sm text-red-600 hover:text-red-800 transition-colors"
+                        >
+                            清空历史
+                        </button>
+                    </div>
+                    {Object.keys(groupedLogs).sort((a, b) => new Date(b) - new Date(a)).map(date => (
+                        <div key={date} className="mb-4">
+                            <h4 className="text-sm font-medium text-gray-700 mb-2">{date}</h4>
+                            <div className="space-y-2">
+                                {groupedLogs[date].map((log, index) => (
+                                    <div key={index} className="flex items-center justify-between group p-2 rounded hover:bg-gray-50">
+                                        <button
+                                            onClick={() => onSearch(log.query, 1, false)}
+                                            className="flex-1 text-left text-gray-700 hover:text-blue-600 truncate"
+                                            title={log.query}
+                                        >
+                                            <span className="flex items-center">
+                                                <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                {log.query}
+                                            </span>
+                                        </button>
+                                        <button
+                                            onClick={() => onDeleteLog(log.query)}
+                                            className="ml-2 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="删除"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        function RecommendationPanel({ query, showRecommendations, onSearch, setQuery }) {
+            const [recommendations, setRecommendations] = useState([]);
+            useEffect(() => {
+                if (showRecommendations && query && query.trim()) {
+                    fetch(`http://localhost:5000/recommend?q=${encodeURIComponent(query.trim())}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (Array.isArray(data)) {
+                                setRecommendations(data);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('获取推荐失败:', error);
+                            setRecommendations([]);
+                        });
+                }
+            }, [query, showRecommendations]);
+            if (!showRecommendations || !query) return null;
+            return (
+                <div id="recommendations" className="bg-gray-50 p-4 rounded shadow-lg mt-8">
+                    <h3 className="text-lg font-semibold mb-4">相关推荐</h3>
+                    {recommendations.map((rec, index) => (
+                        <div key={index} className="recommendation-item">
+                            <i className={rec.type === 'collaborative' ? 'fas fa-users' : 'fas fa-file-alt'}
+                               title={rec.type === 'collaborative' ? '基于其他用户的推荐' : '基于内容的推荐'} />
+                            <button 
+                                onClick={() => {
+                                    const searchTerm = rec.query || rec.title;
+                                    setQuery(searchTerm);
+                                    onSearch(searchTerm, 1);
+                                }}
+                                className="text-left hover:text-blue-600 focus:outline-none"
+                            >
+                                {rec.query || rec.title}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        function SearchApp() {
+            const [query, setQuery] = useState('');
+            const [currentPage, setCurrentPage] = useState(1);
+            const [results, setResults] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [elapsedTime, setElapsedTime] = useState(0);
+            const [totalResults, setTotalResults] = useState(0);
+            const [totalPages, setTotalPages] = useState(0);
+            const [filesOnly, setFilesOnly] = useState(false);
+            const [isPhrase, setIsPhrase] = useState(false);
+            const [logs, setLogs] = useState({ uniqueLogs: [], allLogs: [] });
+            const [error, setError] = useState(null);
+            const [showHistory, setShowHistory] = useState(false);
+            const [showRecommendations, setShowRecommendations] = useState(true);
+            const [username, setUsername] = useState('');
+            const [suggestions, setSuggestions] = useState([]);
+
+            useEffect(() => {
+                const initializeApp = async () => {
+                    try {
+                        const sessionResponse = await fetch('/get_session');
+                        if (!sessionResponse.ok) {
+                            throw new Error('会话验证失败');
+                        }
+                        const sessionData = await sessionResponse.json();
+                        if (!sessionData.logged_in) {
+                            window.location.href = '/login';
+                            return;
+                        }
+                        setUsername(sessionData.username);
+                        
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const queryFromUrl = urlParams.get('q');
+                        const pageFromUrl = parseInt(urlParams.get('page')) || 1;
+                        const filesOnlyFromUrl = urlParams.get('files_only') === 'true';
+                        const isPhraseFromUrl = urlParams.get('is_phrase') === 'true';
+                        
+                        await loadLogs();  // 移动到这里
+                        
+                        if (queryFromUrl) {
+                            setQuery(queryFromUrl);
+                            setFilesOnly(filesOnlyFromUrl);
+                            setIsPhrase(isPhraseFromUrl);
+                            handleSearch(queryFromUrl, pageFromUrl, isPhraseFromUrl);
+                        }
+                    } catch (error) {
+                        console.error('初始化失败:', error);
+                        setError('会话验证失败，请重新登录');
+                        window.location.href = '/login';
+                    }
+                };
+                initializeApp();
+            }, []);
+
+            useEffect(() => {
+                const handlePopState = () => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const queryFromUrl = urlParams.get('q');
+                    const pageFromUrl = parseInt(urlParams.get('page')) || 1;
+                    const filesOnlyFromUrl = urlParams.get('files_only') === 'true';
+                    const isPhraseFromUrl = urlParams.get('is_phrase') === 'true';
+                    if (queryFromUrl) {
+                        setQuery(queryFromUrl);
+                        setFilesOnly(filesOnlyFromUrl);
+                        setIsPhrase(isPhraseFromUrl);
+                        handleSearch(queryFromUrl, pageFromUrl, isPhraseFromUrl);
+                    }
+                };
+                window.addEventListener('popstate', handlePopState);
+                return () => window.removeEventListener('popstate', handlePopState);
+            }, []);
+
+            const debouncedQuery = useDebounce(query, 300);
+    
+            useEffect(() => {
+                if (debouncedQuery.trim()) {
+                    fetch(`http://localhost:5000/suggest?q=${encodeURIComponent(debouncedQuery.trim())}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (Array.isArray(data)) {
+                                setSuggestions(data);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('获取建议失败:', error);
+                            setSuggestions([]);
+                        });
+                } else {
+                    setSuggestions([]);
+                }
+            }, [debouncedQuery]);
+
+            const updateUrlParams = (searchQuery, page, phraseSearch) => {
+                const url = new URL(window.location);
+                url.searchParams.set('q', searchQuery);
+                url.searchParams.set('page', page.toString());
+                url.searchParams.set('files_only', filesOnly.toString());
+                url.searchParams.set('is_phrase', phraseSearch.toString());
+                window.history.pushState({}, '', url);
+            };
+
+            const loadLogs = async (retryCount = 3) => {
+                for (let i = 0; i < retryCount; i++) {
+                    try {
+                        const response = await fetch('/get_logs', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                        });
+                        if (!response.ok) {
+                            throw new Error(`获取搜索历史失败: ${response.status} ${response.statusText}`);
+                        }
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            throw new Error('服务器返回了非 JSON 数据');
+                        }
+                        const data = await response.json();
+                        setLogs({
+                            uniqueLogs: data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+                            allLogs: data
+                        });
+                        return;
+                    } catch (error) {
+                        if (i === retryCount - 1) {
+                            console.error('加载搜索历史失败:', error);
+                            setError('无法加载搜索历史，请检查后端服务');
+                            setLogs({ uniqueLogs: [], allLogs: [] });
+                        } else {
+                            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                        }
+                    }
+                }
+            };
+
+            const handleSearch = async (searchQuery, page = 1, phraseSearch = false) => {
+                if (!searchQuery || !searchQuery.trim()) {
+                    setError('请输入搜索关键词');
+                    return;
+                }
+                setIsLoading(true);
+                setError(null);
+                try {
+                    const body = {
+                        query: searchQuery.trim(),
+                        page: page,
+                        files_only: filesOnly,
+                        is_phrase: phraseSearch
+                    };
+                    const response = await fetch('/search', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(body),
+                    });
+                    if (!response.ok) {
+                        throw new Error(`搜索请求失败: ${response.status} ${response.statusText}`);
+                    }
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('服务器返回了非 JSON 数据');
+                    }
+                    const data = await response.json();
+                    if (!data || !data.results || data.results.length === 0) {
+                        setResults([]);
+                        setTotalResults(0);
+                        setTotalPages(1);
+                        setError('未找到相关结果');
+                        return;
+                    }
+                    setResults(data.results);
+                    setElapsedTime(data.elapsed_time || 0);
+                    setTotalResults(data.total || 0);
+                    setTotalPages(data.total_pages || Math.ceil((data.total || 0) / 10));
+                    setCurrentPage(page);
+                    updateUrlParams(searchQuery, page, phraseSearch);
+                    if (page === 1) {
+                        loadLogs();
+                    }
+                } catch (error) {
+                    console.error('搜索失败:', error);
+                    setError(error.message || '搜索失败，请稍后重试');
+                    setResults([]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handlePageChange = (page) => {
+                if (page < 1 || page > totalPages) return;
+                setCurrentPage(page);
+                handleSearch(query, page, isPhrase);
+            };
+
+            const handleDeleteLog = async (query) => {
+                try {
+                    const response = await fetch('/delete_log', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ query }),
+                    });
+                    if (!response.ok) {
+                        throw new Error('删除搜索记录失败');
+                    }
+                    loadLogs();
+                } catch (error) {
+                    console.error('删除搜索记录失败:', error);
+                    setError('删除搜索记录失败');
+                }
+            };
+
+            const handleClearLogs = async () => {
+                try {
+                    const response = await fetch('/clear_logs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    if (!response.ok) {
+                        throw new Error('清空搜索历史失败');
+                    }
+                    loadLogs();
+                } catch (error) {
+                    console.error('清空搜索历史失败:', error);
+                    setError('清空搜索历史失败');
+                }
+            };
+
+            const handleLogout = async () => {
+                try {
+                    const response = await fetch('/logout');
+                    const data = await response.json();
+                    if (response.ok) {
+                        window.location.href = '/login';
+                    } else {
+                        setError(data.error || '登出失败');
+                    }
+                } catch (error) {
+                    setError('登出失败，请重试');
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 py-8">
+                    <div className="fixed top-4 right-4 flex items-center space-x-4 z-50">
+                        <span className="text-sm text-gray-600">欢迎，{username}</span>
+                        <button
+                            onClick={handleLogout}
+                            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                        >
+                            退出登录
+                        </button>
+                        <button
+                            onClick={() => setShowHistory(!showHistory)}
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                        >
+                            {showHistory ? '关闭历史' : '历史记录'}
+                        </button>
+                    </div>
+                    <div className="container mx-auto px-4">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="text-center mb-8">
+                                <h1 className="text-3xl font-bold text-blue-600 mb-2">南开大学搜索引擎</h1>
+                                <p className="text-gray-600">快速检索校园资源</p>
+                            </div>
+                            <SearchBar
+                                query={query}
+                                setQuery={setQuery}
+                                onSearch={handleSearch}
+                                filesOnly={filesOnly}
+                                setFilesOnly={setFilesOnly}
+                                logs={logs}
+                                isLoading={isLoading}
+                                suggestions={suggestions}
+                            />
+                            {error && (
+                                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg error-message">
+                                    <div className="flex items-center text-red-700">
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {error}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="mt-6">
+                                {results.length > 0 && !isLoading && (
+                                    <div className="text-sm text-gray-600 mb-4">
+                                        找到 {totalResults} 个结果 (用时 {elapsedTime.toFixed(3)} 秒)
+                                    </div>
+                                )}
+                                <ResultsList
+                                    results={results}
+                                    query={query}
+                                    isLoading={isLoading}
+                                />
+                                {results.length > 0 && totalPages > 1 && !isLoading && (
+                                    <div className="mt-8">
+                                        <Pagination
+                                            currentPage={currentPage}
+                                            totalPages={totalPages}
+                                            onPageChange={handlePageChange}
+                                            isLoading={isLoading}
+                                        />
+                                    </div>
+                                )}
+                                <RecommendationPanel
+                                    query={query}
+                                    showRecommendations={showRecommendations}
+                                    onSearch={handleSearch}
+                                    setQuery={setQuery}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    {showHistory && (
+                        <HistoryPanel
+                            logs={logs}
+                            onSearch={handleSearch}
+                            onDeleteLog={handleDeleteLog}
+                            onClearLogs={handleClearLogs}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(
+            <React.StrictMode>
+                <SearchApp />
+            </React.StrictMode>
+        );
+    </script>
+    {% endraw %}
+</body>
+</html>
